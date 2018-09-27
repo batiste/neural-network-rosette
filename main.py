@@ -72,7 +72,7 @@ if __name__ == "__main__":
     nn = NeuralNetwork(X, y)
 
     print "Training neural network ..."
-    for z in range(250000):
+    for z in range(50000):
         # train the network with random pixel from the source image
         x = np.random.randint(2, 123)
         y = np.random.randint(2, 55)

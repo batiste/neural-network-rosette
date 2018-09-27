@@ -20,4 +20,14 @@ The file used to train the output
 
 ## Neural network output
 
-![Result](result.png)
+5'000 random pixels training iterations
+
+![Result 50k training](result5k.png)
+
+50'000 random pixels training iterations
+
+![Result 50k training](result50k.png)
+
+500'000 random pixels training iterations
+
+![Result 500k training](result500k.png)

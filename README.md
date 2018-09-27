@@ -1,6 +1,6 @@
 # neural-network-rosette
 
-Try to enlarge a low quality scan from an image 3X times
+Try to use a neural network to enlarge a low quality scan 3X times.
 
 ## Input
 

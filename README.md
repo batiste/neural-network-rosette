@@ -8,6 +8,10 @@ The file use to train the input
 
 ![Input](in.png)
 
+3X cubic interpolation (Gimp)
+
+![Input 3X cubix](in.png)
+
 ## Output
 
 The file used to train the output

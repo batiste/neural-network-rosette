@@ -10,7 +10,7 @@ The file use to train the input
 
 3X cubic interpolation (Gimp)
 
-![Input 3X cubix](in.png)
+![Input 3X cubix](in3x.png)
 
 ## Output
 

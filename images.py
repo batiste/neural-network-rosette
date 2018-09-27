@@ -1,8 +1,8 @@
 import imageio
 import numpy as np
 
-inimg = imageio.imread('in.png')
-outimg = imageio.imread('out.png')
+inimg = imageio.imread('inkami.png')
+outimg = imageio.imread('outkami.png')
 
 def pixelTo3(p):
     return (p[0], p[1], p[2])
@@ -18,7 +18,10 @@ def values(im, x, y):
     ]
     return map(lambda b: pixelTo3(b), v)
 
-def values_in(x, y):
+def normalized_values(im, x, y):
+    return map(lambda b: normalize(b), values(im, x, y))
+
+def values_in(x, y, inimg=inimg):
     return map(lambda b: normalize(b), values(inimg, x, y))
 
 def values_out(x, y):

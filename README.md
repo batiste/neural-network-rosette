@@ -4,12 +4,16 @@ Try to enlarge a low quality scan from an image 3X times
 
 ## Input
 
-[[in.png|alt=octocat]]
+The file use to train the input
+
+![Input](in.png)
 
 ## Output
 
-[[out.png|alt=octocat]]
+The file used to train the output
+
+![Output](out.png)
 
 ## Neural network output
 
-[[result.png|alt=octocat]]
+![Result](result.png)

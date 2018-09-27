@@ -54,7 +54,6 @@ def storePixels(array, index, pixels, width):
 if __name__ == "__main__":
     _x = np.random.randint(5, 120)
     _y = np.random.randint(5, 50)
-    print _x, _y
     input = values_in(_x, _y)
     output = values_out(_x, _y)
 
@@ -73,7 +72,7 @@ if __name__ == "__main__":
     nn = NeuralNetwork(X, y)
 
     print "Training neural network ..."
-    for z in range(150000):
+    for z in range(25000):
         # train the network with random pixel from the source image
         x = np.random.randint(2, 123)
         y = np.random.randint(2, 55)

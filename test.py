@@ -72,7 +72,8 @@ if __name__ == "__main__":
     y = np.array(output)
     nn = NeuralNetwork(X, y)
 
-    for z in range(15000):
+    print "Training neural network ..."
+    for z in range(150000):
         # train the network with random pixel from the source image
         x = np.random.randint(2, 123)
         y = np.random.randint(2, 55)
@@ -92,7 +93,6 @@ if __name__ == "__main__":
     # another random pixel
     _x = np.random.randint(5, 120)
     _y = np.random.randint(5, 50)
-    print _x, _y
     input = values_in(_x, _y)
     output = values_out(_x, _y)
 
@@ -115,10 +115,8 @@ if __name__ == "__main__":
     imageio.imwrite('check.png', a)
     print "Image written"
 
-    # print nn.weights1
-    # print nn.weights2
-    # print "---"
-    #
+
+    print "Outputing the result image"
     [height, width, _] = inimg.shape
     # 57 124, 6710
     [oheight, owidth, _] = outimg.shape
@@ -127,7 +125,6 @@ if __name__ == "__main__":
     assert (width - 2) * 3 == outw
     assert (height - 2) * 3 == outh
     pixels = [None] * (outh * outw)
-    print len(pixels)
     y = 1
     x = 1
     while(y < height - 1):
@@ -135,7 +132,6 @@ if __name__ == "__main__":
             nn.input = values_in(x, y)
             index = (outw + (3 * outw * (y - 1))) + (1 + ((x - 1) * 3))
             storePixels(pixels, index, nn.feedforward(), outw)
-            # print x, y, index, len(pixels)
             x += 1
         else:
             x = 1

@@ -1,6 +1,7 @@
 import numpy as np
 from images import values_in, values_out, inimg, outimg
 import imageio
+import sys
 
 # https://towardsdatascience.com/how-to-build-your-own-neural-network-from-scratch-in-python-68998a08e4f6
 
@@ -72,17 +73,25 @@ if __name__ == "__main__":
     nn = NeuralNetwork(X, y)
 
     print "Training neural network ..."
-    for z in range(50000):
+    # this speed up the training significantly
+    pixelsCache = {}
+    for z in range(500000):
         # train the network with random pixel from the source image
+        if z % 10000 == 0:
+            sys.stdout.write('.')
+            sys.stdout.flush()
         x = np.random.randint(2, 123)
         y = np.random.randint(2, 55)
-        input = values_in(x, y)
-        output = values_out(x, y)
-        nn.input = np.array(input)
-        nn.y = np.array(output)
+        key = "%d,%d" % (x, y)
+        if not key in pixelsCache:
+            pixelsCache[key] = (np.array(values_in(x, y)), np.array(values_out(x, y)))
+        input, output = pixelsCache[key]
+        nn.input = input
+        nn.y = output
         nn.feedforward()
         nn.backprop()
-    #
+
+    print ""
     print "Neural network trained"
 
 

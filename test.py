@@ -2,6 +2,8 @@ import numpy as np
 from images import values_in, values_out, inimg, outimg
 import imageio
 
+# https://towardsdatascience.com/how-to-build-your-own-neural-network-from-scratch-in-python-68998a08e4f6
+
 def sigmoid(x):
     return 1.0/(1+ np.exp(-x))
 
@@ -11,10 +13,10 @@ def sigmoid_derivative(x):
 class NeuralNetwork:
     def __init__(self, x, y):
         self.input      = x
+        # 26 seems the maximun of node in the layer 1 before everything
+        # goes crazy
         self.weights1   = np.random.rand(self.input.shape[1], 26)
-        print self.weights1
         self.weights2   = np.random.rand(26, 3)
-        print self.weights2
         self.y          = y
         self.output     = np.zeros(self.y.shape)
 
@@ -70,7 +72,8 @@ if __name__ == "__main__":
     y = np.array(output)
     nn = NeuralNetwork(X, y)
 
-    for z in range(10000):
+    for z in range(15000):
+        # train the network with random pixel from the source image
         x = np.random.randint(2, 123)
         y = np.random.randint(2, 55)
         input = values_in(x, y)
@@ -103,9 +106,13 @@ if __name__ == "__main__":
         pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
 
 
+    # write a test image with 6 lines of 9 pixels each
+    # input
+    # output
+    # neural network output
     a = np.array(pixels, dtype=np.uint8)
     a.shape = (6, 9, 3)
-    imageio.imwrite('hop.png', a)
+    imageio.imwrite('check.png', a)
     print "Image written"
 
     # print nn.weights1
@@ -136,5 +143,5 @@ if __name__ == "__main__":
 
     a = np.array(pixels, dtype=np.uint8)
     a.shape = (outh, outw, 3)
-    imageio.imwrite('all.png', a)
+    imageio.imwrite('result.png', a)
     print "Image written"

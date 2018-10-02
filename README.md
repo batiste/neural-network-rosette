@@ -18,7 +18,7 @@ The file used to train the output
 
 100'000 random pixels training iterations
 
-![Result 100k training](result.png)
+![Result 100k training](result100k.png)
 
 For comparison, Gimp 3x scale up, lo-halo algorithm
 

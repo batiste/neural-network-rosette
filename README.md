@@ -6,28 +6,20 @@ Try to use a neural network to enlarge a low quality scan 3X times.
 
 The file use to train the input
 
-![Input](in.png)
-
-3X cubic interpolation (Gimp)
-
-![Input 3X cubix](in3x.png)
+![Input](inkami.png)
 
 ## Output
 
 The file used to train the output
 
-![Output](out.png)
+![Output](outkami.png)
 
 ## Neural network output
 
-5'000 random pixels training iterations
+100'000 random pixels training iterations
 
-![Result 50k training](result5k.png)
+![Result 100k training](result.png)
 
-50'000 random pixels training iterations
+For comparison, Gimp 3x scale up, lo-halo algorithm
 
-![Result 50k training](result50k.png)
-
-500'000 random pixels training iterations
-
-![Result 500k training](result500k.png)
+![Result Gimp lo-halo](3scale-lohalo.png)

@@ -16,8 +16,8 @@ class NeuralNetwork:
         self.input      = x
         # 26 seems the maximun of node in the layer 1 before everything
         # goes crazy
-        self.weights1   = np.random.rand(self.input.shape[1], 18)
-        self.weights2   = np.random.rand(18, 3)
+        self.weights1   = np.random.rand(self.input.shape[1], 32)
+        self.weights2   = np.random.rand(32, 3)
         self.y          = y
         self.output     = np.zeros(self.y.shape)
 
@@ -26,7 +26,7 @@ class NeuralNetwork:
         self.output = sigmoid(np.dot(self.layer1, self.weights2))
         return self.output
 
-    def backprop(self):
+    def backprop(self, w=1):
         # application of the chain rule to find derivative of the loss function with respect to weights2 and weights1
         d_weights2 = np.dot(self.layer1.T, (2*(self.y - self.output) * sigmoid_derivative(self.output)))
         d_weights1 = np.dot(self.input.T,
@@ -35,8 +35,8 @@ class NeuralNetwork:
             * sigmoid_derivative(self.layer1)))
 
         # update the weights with the derivative (slope) of the loss function
-        self.weights1 += d_weights1
-        self.weights2 += d_weights2
+        self.weights1 += (d_weights1 / w)
+        self.weights2 += (d_weights2 / w)
 
 def convert(p):
     return (255 * p[0], 255 * p[1], 255 * p[2])
@@ -65,52 +65,71 @@ def writeImage(inimg, outimg, nn, filename):
     a.shape = (outh, outw, 3)
     imageio.imwrite(filename, a)
 
+
+def weighted_mean(p1, p2):
+    return (
+        (3 * p1[0] + 2 * p2[0]) / 5.0,
+        (3 * p1[1] + 2 * p2[1]) / 5.0,
+        (3 * p1[2] + 2 * p2[2]) / 5.0,
+    )
+
+def storePixel(array, index, v):
+    try:
+        if(array[index] is None):
+            array[index] = v
+        else:
+            p1 = array[index]
+            p2 = v
+            array[index] = weighted_mean(p1, p2)
+    except IndexError:
+        pass
+
+
 def storePixels(array, index, pixels, width):
     # It works properly
 
-    array[index - width - 1] = convert(pixels[0])
-    array[index - width] = convert(pixels[1])
-    array[index - width + 1] = convert(pixels[2])
+    storePixel(array, index - width - 1, convert(pixels[0]))
+    storePixel(array, index - width, convert(pixels[1]))
+    storePixel(array, index - width + 1, convert(pixels[2]))
 
-    array[index - 1] = convert(pixels[3])
-    array[index] = convert(pixels[4])
-    array[index + 1] = convert(pixels[5])
+    storePixel(array, index - 1, convert(pixels[3]))
+    storePixel(array, index, convert(pixels[4]))
+    storePixel(array, index + 1, convert(pixels[5]))
 
-    array[index + width - 1] = convert(pixels[6])
-    array[index + width] = convert(pixels[7])
-    array[index + width + 1] = convert(pixels[8])
-
+    storePixel(array, index + width - 1, convert(pixels[6]))
+    storePixel(array, index + width, convert(pixels[7]))
+    storePixel(array, index + width + 1, convert(pixels[8]))
 
 def main(inimg, outimg):
     [height, width, _] = inimg.shape
-    _x = np.random.randint(5, width - 2)
-    _y = np.random.randint(5, height - 2)
-    input = values_in(_x, _y)
-    output = values_out(_x, _y)
+    x = np.random.randint(2, width - 2)
+    y = np.random.randint(2, height - 2)
+    input = values_in(x, y)
+    output = values_out(x, y)
 
     pixels = []
-    y = 1
-    x = 1
     for pixel in input:
         pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
 
     for pixel in output:
         pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
 
-    X = np.array(input)
-    y = np.array(output)
-    nn = NeuralNetwork(X, y)
+    I = np.array(input)
+    O = np.array(output)
+    nn = NeuralNetwork(I, O)
 
     print "Training neural network ..."
     # this speed up the training significantly
+
     pixelsCache = {}
-    for z in range(60000):
+    iterations = 100000
+    for z in range(iterations):
         # train the network with random pixel from the source image
+        x = np.random.randint(1, width - 2)
+        y = np.random.randint(1, height - 2)
         if z % 5000 == 0:
             sys.stdout.write('.')
             sys.stdout.flush()
-        x = np.random.randint(2, width - 2)
-        y = np.random.randint(2, height - 2)
         key = "%d,%d" % (x, y)
         if not key in pixelsCache:
             pixelsCache[key] = (np.array(values_in(x, y)), np.array(values_out(x, y)))
@@ -118,7 +137,11 @@ def main(inimg, outimg):
         nn.input = input
         nn.y = output
         nn.feedforward()
-        nn.backprop()
+        # last 10% should be smaller adjustments
+        if (iterations - z) / float(iterations) < 0.1:
+            nn.backprop(w=100)
+        else:
+            nn.backprop(w=10)
 
     print ""
     print "Neural network trained"
@@ -128,8 +151,8 @@ def main(inimg, outimg):
         pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
 
     # another random pixel
-    _x = np.random.randint(5, width - 2)
-    _y = np.random.randint(5, height - 2)
+    _x = np.random.randint(1, width - 2)
+    _y = np.random.randint(1, height - 2)
     input = values_in(_x, _y)
     output = values_out(_x, _y)
 
@@ -155,10 +178,6 @@ def main(inimg, outimg):
 
     print "Outputing the result images"
     writeImage(inimg, outimg, nn, 'result.png')
-
-    inimg = imageio.imread('in.png')
-    outimg = imageio.imread('out.png')
-    writeImage(inimg, outimg, nn, 'result2.png')
 
 
 if __name__ == "__main__":

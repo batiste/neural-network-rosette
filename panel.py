@@ -16,8 +16,14 @@ def make_panel(labeled_images, filename, cols, cell_size=200, pad=6, label_h=18)
         r, c = divmod(i, cols)
         x = pad + c * (cell_size + pad)
         y = pad + r * (cell_size + label_h + pad)
-        thumb = Image.fromarray(img).resize((cell_size, cell_size), resample=Image.NEAREST)
-        panel.paste(thumb, (x, y))
+
+        im = Image.fromarray(img)
+        scale = min(cell_size / im.width, cell_size / im.height)
+        new_size = (max(1, round(im.width * scale)), max(1, round(im.height * scale)))
+        thumb = im.resize(new_size, resample=Image.NEAREST)
+        offset = (x + (cell_size - new_size[0]) // 2, y + (cell_size - new_size[1]) // 2)
+        panel.paste(thumb, offset)
+
         draw.text((x, y + cell_size + 2), label, fill="black", font=font)
 
     panel.save(filename)

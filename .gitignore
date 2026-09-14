@@ -7,4 +7,5 @@
 .DS_Store
 .venv/
 __pycache__/
-checkpoints/
+checkpoints/*
+!checkpoints/best.pt

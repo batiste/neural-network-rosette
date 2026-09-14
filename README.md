@@ -36,7 +36,7 @@ The single-image-pair, 3x3-neighborhood approach below turned out to be a dead e
 .venv/bin/python results.py --checkpoint checkpoints/best.pt --out results.png   # regenerate the sheet above
 ```
 
-`train.py` holds out the last `--val-count` images in `sources/` for validation, logs PSNR/SSIM per epoch, and writes a preview panel (input/bicubic/prediction/target) every `--preview-every` epochs plus `latest.pt`/`best.pt` checkpoints, all under `--checkpoint-dir` (gitignored — they're large binaries, not source). Run any script with `--help` for the full set of options.
+`train.py` holds out the last `--val-count` images in `sources/` for validation, logs PSNR/SSIM per epoch, and writes a preview panel (input/bicubic/prediction/target) every `--preview-every` epochs plus `latest.pt`/`best.pt` checkpoints under `--checkpoint-dir`. `checkpoints/best.pt` is committed to the repo (~5.3MB) so `infer.py`/`results.py` work out of the box without retraining; everything else under `checkpoints/` (per-epoch previews, optimizer state, training history) is gitignored. The committed `best.pt` reached val PSNR 27.9 / SSIM 0.79 after 30 epochs on 9 source images.
 
 `sources/` holds the clean training images. The two small `.jpg` files are tracked in git; the larger `.png` ones are gitignored (`*.png`) since they're multi-megabyte originals — keep your own copies there locally, train.py just needs at least a few images in that directory.
 

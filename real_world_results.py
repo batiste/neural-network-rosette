@@ -1,6 +1,7 @@
-"""Real-world validation: source vs. network output for actual card
-photos (bear.webp, lotus.webp), not synthetic crops -- the honest test
-of whether this generalizes beyond the training distribution.
+"""Real-world validation: source vs. a strong classical upscale vs.
+network output, for actual card photos (bear.webp, lotus.webp), not
+synthetic crops -- the honest test of whether this generalizes beyond
+the training distribution.
 
 Composited at each image's full native resolution with zero resampling
 (not panel.py's make_panel, which thumbnails everything down to a small
@@ -19,7 +20,7 @@ LABEL_H = 36
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Build a full-resolution, lossless source/output comparison for real card photos."
+        description="Build a full-resolution, lossless source/classical/network comparison for real card photos."
     )
     parser.add_argument("--pairs", nargs="+", default=["bear", "lotus"],
                          help="basenames with a <name>.webp source and <name>_upscaled.png output")
@@ -29,28 +30,37 @@ def parse_args():
 
 def main():
     args = parse_args()
-    pairs = []
+    rows = []
     for name in args.pairs:
         source = Image.open(SCRIPT_DIR / f"{name}.webp").convert("RGB")
         output = Image.open(SCRIPT_DIR / f"{name}_upscaled.png").convert("RGB")
-        pairs.append((name, source, output))
+        scale = round(output.width / source.width)
+        # Lanczos: the strongest classical resampling filter (best PSNR/SSIM
+        # of nearest/bilinear/bicubic/lanczos/sharpened-bicubic in evaluate.py)
+        classical = source.resize((source.width * scale, source.height * scale), resample=Image.LANCZOS)
+        rows.append((name, [
+            ("source", source),
+            (f"lanczos {scale}x", classical),
+            ("network output", output),
+        ]))
 
-    source_col_w = max(s.width for _, s, o in pairs)
-    output_col_w = max(o.width for _, s, o in pairs)
-    row_heights = [max(s.height, o.height) + LABEL_H for _, s, o in pairs]
+    n_cols = len(rows[0][1])
+    col_widths = [max(cells[c][1].width for _, cells in rows) for c in range(n_cols)]
+    row_heights = [max(img.height for _, img in cells) + LABEL_H for _, cells in rows]
 
-    panel_w = PAD * 3 + source_col_w + output_col_w
-    panel_h = PAD * (len(pairs) + 1) + sum(row_heights)
+    panel_w = PAD * (n_cols + 1) + sum(col_widths)
+    panel_h = PAD * (len(rows) + 1) + sum(row_heights)
     panel = Image.new("RGB", (panel_w, panel_h), "white")
     draw = ImageDraw.Draw(panel)
     font = ImageFont.load_default()
 
     y = PAD
-    for (name, source, output), row_h in zip(pairs, row_heights):
-        panel.paste(source, (PAD, y))
-        panel.paste(output, (PAD * 2 + source_col_w, y))
-        draw.text((PAD, y + source.height + 4), f"{name}: source", fill="black", font=font)
-        draw.text((PAD * 2 + source_col_w, y + output.height + 4), f"{name}: network output", fill="black", font=font)
+    for (name, cells), row_h in zip(rows, row_heights):
+        x = PAD
+        for c, (label, img) in enumerate(cells):
+            panel.paste(img, (x, y))
+            draw.text((x, y + img.height + 4), f"{name}: {label}", fill="black", font=font)
+            x += col_widths[c] + PAD
         y += row_h + PAD
 
     panel.save(args.out)

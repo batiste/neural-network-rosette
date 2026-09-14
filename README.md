@@ -43,7 +43,7 @@ python3 -m venv .venv
 
 ## Real-world results
 
-The above is all synthetic — the actual test is real photos of physical cards, not synthetically degraded crops. `real_world_results.py` runs inference on a couple of real card photos and panels them against the source:
+The above is all synthetic — the actual test is real photos of physical cards, not synthetically degraded crops. `real_world_results.py` runs inference on a couple of real card photos and panels source / Lanczos 3x (the strongest classical resampling filter, per `evaluate.py`) / network output side by side:
 
 ```
 .venv/bin/python infer.py --checkpoint checkpoints/best.pt --input bear.webp --output bear_upscaled.png
@@ -53,7 +53,7 @@ The above is all synthetic — the actual test is real photos of physical cards,
 
 ![Real-world results](real_world_results.png)
 
-The image above is pasted at full native resolution (2760x5760, lossless) but GitHub's inline preview downsamples it to fit the viewport — **[download the full-resolution PNG](https://raw.githubusercontent.com/batiste/neural-network-rosette/master/real_world_results.png)** (~13.6MB) to see it at actual pixel size, or open it locally after cloning.
+The image above is pasted at full native resolution (4800x5760, lossless) but GitHub's inline preview downsamples it to fit the viewport — **[download the full-resolution PNG](https://raw.githubusercontent.com/batiste/neural-network-rosette/master/real_world_results.png)** (~29MB) to see it at actual pixel size, or open it locally after cloning. Note that Lanczos, having done no denoising, just enlarges the source's existing noise/grain along with it — the network output is visibly cleaner at comparable letterform sharpness, which is really the network's main real contribution here rather than out-sharpening a good classical filter on edges alone.
 
 Illustration detail and body/rules text come out clearly sharper than the source at this scale. The one honest weak point: small embossed title text (light gray on a textured card border) hasn't improved as much as everything else across several rounds of tuning — it's plausibly close to an information floor for what a model this size, trained this way, can confidently reconstruct from the signal actually present in the source photo, rather than something more data or training would keep fixing.
 

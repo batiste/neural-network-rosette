@@ -53,6 +53,8 @@ The above is all synthetic — the actual test is real photos of physical cards,
 
 ![Real-world results](real_world_results.png)
 
+The image above is pasted at full native resolution (2760x5760, lossless) but GitHub's inline preview downsamples it to fit the viewport — **[download the full-resolution PNG](https://raw.githubusercontent.com/batiste/neural-network-rosette/master/real_world_results.png)** (~13.6MB) to see it at actual pixel size, or open it locally after cloning.
+
 Illustration detail and body/rules text come out clearly sharper than the source at this scale. The one honest weak point: small embossed title text (light gray on a textured card border) hasn't improved as much as everything else across several rounds of tuning — it's plausibly close to an information floor for what a model this size, trained this way, can confidently reconstruct from the signal actually present in the source photo, rather than something more data or training would keep fixing.
 
 ## Training and inference

@@ -3,3 +3,4 @@ imageio
 torch
 scikit-image
 pillow
+fonttools

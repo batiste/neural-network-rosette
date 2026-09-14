@@ -66,12 +66,32 @@ PRESETS = {
         noise_sigma=(0.0, 8.0),
         jpeg_quality=(45, 95),
     ),
+    # Every preset above has a nonzero *minimum* degradation strength, so
+    # the network never otherwise sees a pair where the right answer is
+    # "there's nothing to fix, just upscale" -- it has no way to learn to
+    # modulate correction strength based on whether the input actually
+    # needs it. This preset is a good-quality scan/photo: essentially no
+    # halftone/ripple/misregistration, high-quality downsampling, and
+    # only the mild blur/noise/compression a clean capture still has.
+    "clean": dict(
+        halftone_strength=(0.0, 0.0),
+        halftone_period=(4.0, 4.0),
+        ripple_strength=(0.0, 0.0),
+        misregistration_px=(0.0, 0.0),
+        downsample_method=("bicubic", "box"),
+        scan_dpi_factor=(0.9, 1.1),
+        blur_radius=(0.0, 0.2),
+        sharpen_percent=(0, 30),
+        noise_sigma=(0.0, 1.5),
+        jpeg_quality=(90, 100),
+    ),
 }
 
 DOWNSAMPLE_FILTERS = {
     "nearest": Image.NEAREST,
     "box": Image.BOX,
     "bilinear": Image.BILINEAR,
+    "bicubic": Image.BICUBIC,
 }
 
 
@@ -111,10 +131,19 @@ def halftone_screen_distance(h, w, period, angle_deg, rng):
     return np.sqrt(cx ** 2 + cy ** 2) / (period / 2)
 
 
-def apply_halftone(rgb01, period, strength, rng):
+def apply_halftone(rgb01, period, strength, rng, protect_mask=None):
     """Overlay an AM halftone dot screen per CMY-ish channel, each at its
     own rotation angle (the offset-print rosette), sized by local ink
-    coverage. rgb01 is a float array in [0, 1]."""
+    coverage. rgb01 is a float array in [0, 1].
+
+    Halftone visibility tapers off toward 0%/100% ink coverage: a real
+    screen there degenerates to "almost all gap" or "almost all ink",
+    with little periodic structure to alias into moire -- it's most
+    visible in midtones, where dot and gap size are comparable. It's
+    fully suppressed under protect_mask, since solid black text/line art
+    in real printing is laid down as flat 100% K ink, not halftoned, so
+    it shouldn't pick up screen texture either.
+    """
     h, w = rgb01.shape[:2]
     cmy = 1.0 - rgb01
     angles = [15.0, 75.0, 0.0]
@@ -126,9 +155,12 @@ def apply_halftone(rgb01, period, strength, rng):
         dot_radius = np.sqrt(coverage)
         edge = 0.15
         ink_mask = np.clip((dot_radius - dist) / edge + 0.5, 0, 1)
-        halftoned = ink_mask
-        out_cmy[..., c] = coverage * (1 - strength) + halftoned * strength
-    return np.clip(1.0 - out_cmy, 0, 1)
+        local_strength = strength * 4 * coverage * (1 - coverage)
+        out_cmy[..., c] = coverage * (1 - local_strength) + ink_mask * local_strength
+    result = np.clip(1.0 - out_cmy, 0, 1)
+    if protect_mask is not None:
+        result = np.where(protect_mask[..., None], rgb01, result)
+    return result
 
 
 def apply_misregistration(rgb_img, max_px, rng):
@@ -146,9 +178,12 @@ def apply_misregistration(rgb_img, max_px, rng):
     return np.stack(channels, axis=-1)
 
 
-def degrade(clean_hr, scale, rng, preset="mixed"):
+def degrade(clean_hr, scale, rng, preset="mixed", protect_mask=None):
     """clean_hr: uint8 (H, W, 3) array, H and W divisible by `scale`.
-    Returns a uint8 (H/scale, W/scale, 3) degraded low-res array."""
+    protect_mask: optional (H, W) bool array (e.g. from
+    graphics.add_synthetic_graphics) marking solid text/line pixels that
+    should skip halftoning. Returns a uint8 (H/scale, W/scale, 3)
+    degraded low-res array."""
     params = PRESETS[preset]
     h, w = clean_hr.shape[:2]
 
@@ -157,7 +192,7 @@ def degrade(clean_hr, scale, rng, preset="mixed"):
     halftone_strength = _sample(rng, params["halftone_strength"])
     if halftone_strength > 0:
         period = _sample(rng, params["halftone_period"])
-        rgb01 = apply_halftone(rgb01, period, halftone_strength, rng)
+        rgb01 = apply_halftone(rgb01, period, halftone_strength, rng, protect_mask=protect_mask)
 
     ripple_strength = _sample(rng, params["ripple_strength"])
     if ripple_strength > 0:

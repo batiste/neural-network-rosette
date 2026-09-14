@@ -11,6 +11,7 @@ from PIL import Image
 
 from dataset import list_sources
 from device import get_device
+from graphics import add_synthetic_graphics
 from infer import load_model
 from moire import PRESETS, degrade
 from panel import make_panel
@@ -28,6 +29,8 @@ def parse_args():
     parser.add_argument("--samples", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--preset", default=None, help="fixed preset name, otherwise randomized per sample")
+    parser.add_argument("--graphics-prob", type=float, default=0.5,
+                         help="probability of overlaying synthetic text/lines onto a sample before degrading it")
     parser.add_argument("--device", default=None)
     return parser.parse_args()
 
@@ -52,9 +55,12 @@ def main():
         x = int(rng.integers(0, w - args.hr_size + 1))
         y = int(rng.integers(0, h - args.hr_size + 1))
         hr = np.array(im.crop((x, y, x + args.hr_size, y + args.hr_size)))
+        protect_mask = None
+        if rng.random() < args.graphics_prob:
+            hr, protect_mask = add_synthetic_graphics(hr, rng)
 
         preset = args.preset or PRESET_NAMES[int(rng.integers(0, len(PRESET_NAMES)))]
-        lr = degrade(hr, scale, rng, preset=preset)
+        lr = degrade(hr, scale, rng, preset=preset, protect_mask=protect_mask)
 
         with torch.no_grad():
             lr_t = torch.from_numpy(lr.astype(np.float32).transpose(2, 0, 1) / 255.0).unsqueeze(0).to(device)

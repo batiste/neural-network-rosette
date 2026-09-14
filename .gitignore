@@ -3,6 +3,7 @@
 !outkami.png
 !moire_preview.png
 !results.png
+!real_world_results.png
 *.pyc
 .DS_Store
 .venv/

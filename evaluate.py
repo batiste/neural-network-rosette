@@ -9,8 +9,8 @@ from pathlib import Path
 import imageio.v2 as imageio
 import numpy as np
 from PIL import Image, ImageFilter
-from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
+from metrics import compute_color_metrics, compute_edge_metrics, compute_luma_metrics, compute_metrics
 from panel import make_panel
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -38,13 +38,6 @@ def crop_to_match(img, offset, outh, outw):
     predicts (it skips a 1-input-pixel border, i.e. `scale - 1` output
     pixels on each side)."""
     return img[offset:offset + outh, offset:offset + outw]
-
-
-def compute_metrics(candidate, reference):
-    return {
-        "psnr": float(peak_signal_noise_ratio(reference, candidate, data_range=255)),
-        "ssim": float(structural_similarity(reference, candidate, channel_axis=2, data_range=255)),
-    }
 
 
 def parse_args():
@@ -76,10 +69,20 @@ def main():
     candidates = {name: crop_to_match(img, offset, outh, outw) for name, img in candidates.items()}
     candidates["neural"] = neural_img
 
-    metrics = {name: compute_metrics(img, target_crop) for name, img in candidates.items()}
-    print(f"{'method':<18}{'psnr':>10}{'ssim':>10}")
-    for name, m in sorted(metrics.items(), key=lambda kv: -kv[1]["psnr"]):
-        print(f"{name:<18}{m['psnr']:>10.2f}{m['ssim']:>10.4f}")
+    metrics = {}
+    for name, img in candidates.items():
+        m = compute_metrics(img, target_crop)
+        m.update(compute_edge_metrics(img, target_crop))
+        m.update(compute_luma_metrics(img, target_crop))
+        m.update(compute_color_metrics(img, target_crop))
+        metrics[name] = m
+
+    print(f"{'method':<18}{'psnr':>8}{'ssim':>8}{'edge_psnr':>11}{'edge_ssim':>11}{'luma_psnr':>11}{'delta_e':>9}")
+    for name, m in sorted(metrics.items(), key=lambda kv: -kv[1]["edge_psnr"]):
+        print(
+            f"{name:<18}{m['psnr']:>8.2f}{m['ssim']:>8.4f}{m['edge_psnr']:>11.2f}"
+            f"{m['edge_ssim']:>11.4f}{m['luma_psnr']:>11.2f}{m['delta_e_mean']:>9.2f}"
+        )
 
     with open(args.metrics, "w") as f:
         json.dump(metrics, f, indent=2)

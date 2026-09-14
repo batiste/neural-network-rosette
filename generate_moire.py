@@ -8,15 +8,11 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from dataset import list_sources
 from moire import PRESETS, degrade
 from panel import make_panel
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-
-
-def load_sources(source_dir):
-    exts = {".png", ".jpg", ".jpeg"}
-    return sorted(p for p in Path(source_dir).iterdir() if p.suffix.lower() in exts)
 
 
 def random_hr_crop(image_path, hr_size, rng):
@@ -44,7 +40,10 @@ def parse_args():
 def main():
     args = parse_args()
     rng = np.random.default_rng(args.seed)
-    sources = load_sources(args.sources)
+    if args.hr_size % args.scale != 0:
+        raise SystemExit("--hr-size must be divisible by --scale")
+
+    sources = list_sources(args.sources)
     if not sources:
         raise SystemExit(f"No source images found in {args.sources}")
 

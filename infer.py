@@ -10,17 +10,10 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 
+from device import get_device
 from model import TinySRNet
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-
-
-def get_device():
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
 
 
 def load_model(checkpoint_path, device):
@@ -33,16 +26,20 @@ def load_model(checkpoint_path, device):
 
 @torch.no_grad()
 def run_tiled(model, img_tensor, scale, tile_size, context, device):
+    """Tiles are moved to `device` one at a time so only a single tile's
+    activations sit on the GPU/MPS device at once; the output accumulates
+    on the CPU so a large image's full-resolution buffer doesn't also have
+    to fit in GPU memory."""
     _, _, h, w = img_tensor.shape
     padded = F.pad(img_tensor, (context, context, context, context), mode="reflect")
-    out = torch.zeros(1, 3, h * scale, w * scale, device=device)
+    out = torch.zeros(1, 3, h * scale, w * scale)
 
     for y in range(0, h, tile_size):
         for x in range(0, w, tile_size):
             th = min(tile_size, h - y)
             tw = min(tile_size, w - x)
             tile = padded[:, :, y:y + th + 2 * context, x:x + tw + 2 * context]
-            pred = model(tile.to(device))
+            pred = model(tile.to(device)).cpu()
             core = pred[:, :, context * scale:(context + th) * scale, context * scale:(context + tw) * scale]
             out[:, :, y * scale:(y + th) * scale, x * scale:(x + tw) * scale] = core
 

@@ -6,19 +6,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from device import get_device
 from images import ImagePair
 
 # https://towardsdatascience.com/how-to-build-your-own-neural-network-from-scratch-in-python-68998a08e4f6
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-
-
-def get_device():
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
 
 
 class PixelMLP(nn.Module):

@@ -1,4 +1,8 @@
 *.png
+!inkami.png
+!outkami.png
+!moire_preview.png
+!results.png
 *.pyc
 .DS_Store
 .venv/

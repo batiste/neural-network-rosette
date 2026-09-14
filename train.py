@@ -12,6 +12,7 @@ from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 from torch.utils.data import DataLoader
 
 from dataset import MoireDataset, list_sources, split_sources
+from device import get_device
 from model import TinySRNet
 from panel import make_panel
 
@@ -32,14 +33,6 @@ def edge_loss(pred, target):
         return torch.sqrt(gx ** 2 + gy ** 2 + 1e-6)
 
     return F.l1_loss(gradient_magnitude(pred), gradient_magnitude(target))
-
-
-def get_device():
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
 
 
 def to_uint8_image(t):

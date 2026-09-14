@@ -6,7 +6,13 @@ My original idea was to "fix" scans of MTG cards that contains the typical moir�
 
 The problem was to find good training data (clean image + moiré image) that would align perfectly has training data. So at the end I just did use simple scaled down image and forgot about the moiré.
 
-[Moiré effect](moire_preview.png)
+## Results
+
+Source crop / synthetically degraded moiré input / network output, for a few random crops and degradation presets:
+
+![Results](results.png)
+
+(from a CNN trained briefly on 9 source images — see the CNN pipeline section below to train further or regenerate this with `results.py`.)
 
 ## Setup
 
@@ -24,22 +30,25 @@ The single-image-pair, 3x3-neighborhood approach below turned out to be a dead e
 - Trains a small residual CNN (`model.py`) that predicts a correction on top of a bicubic upscale, giving it enough spatial context to actually recognize and remove the pattern instead of guessing per-pixel.
 
 ```
-.venv/bin/python generate_moire.py --seed 1 --out moire_preview.png   # inspect the synthetic degradations
+.venv/bin/python generate_moire.py --seed 1 --out moire_preview.png   # inspect the synthetic degradation presets
 .venv/bin/python train.py --epochs 30 --checkpoint-dir checkpoints    # train (auto-uses MPS on Apple Silicon)
 .venv/bin/python infer.py --checkpoint checkpoints/best.pt --input some_image.png --output upscaled.png
+.venv/bin/python results.py --checkpoint checkpoints/best.pt --out results.png   # regenerate the sheet above
 ```
 
 `train.py` holds out the last `--val-count` images in `sources/` for validation, logs PSNR/SSIM per epoch, and writes a preview panel (input/bicubic/prediction/target) every `--preview-every` epochs plus `latest.pt`/`best.pt` checkpoints, all under `--checkpoint-dir` (gitignored — they're large binaries, not source). Run any script with `--help` for the full set of options.
+
+`sources/` holds the clean training images. The two small `.jpg` files are tracked in git; the larger `.png` ones are gitignored (`*.png`) since they're multi-megabyte originals — keep your own copies there locally, train.py just needs at least a few images in that directory.
 
 ## Original per-pixel approach (superseded, kept as a baseline)
 
 The first version trained a tiny MLP on a single 100x100 input/output image pair, treating each of the 9 pixels in a 3x3 neighborhood as an independent training sample mapped to one output pixel. It's a nice minimal starting point but architecturally can't see anything larger than 3x3, so it can't learn to recognize or remove a spatial pattern like moiré.
 
 ```
-.venv/bin/python main.py --seed 42 --result result.png
-.venv/bin/python evaluate.py --neural result.png --panel comparison.png
+.venv/bin/python main.py --input <100x100 image> --output <300x300 image> --seed 42 --result result.png
+.venv/bin/python evaluate.py --input <100x100 image> --target <300x300 image> --neural result.png --panel comparison.png
 ```
 
-`main.py` trains on `inkami.png`/`outkami.png` and writes `result.png` + a diagnostic `check.png`. `evaluate.py` compares any such result against classical resize baselines (nearest/bilinear/bicubic/Lanczos/sharpened-bicubic) with PSNR/SSIM and a labeled side-by-side panel. Only a 3x scale is supported, since the network's patch sizes are tied to it.
+`main.py` trains on a single low/high-res image pair (`inkami.png`/`outkami.png` by default, a crop from `sources/fisherman.png`) and writes `result.png` + a diagnostic `check.png`. `evaluate.py` compares any such result against classical resize baselines (nearest/bilinear/bicubic/Lanczos/sharpened-bicubic) with PSNR/SSIM and a labeled side-by-side panel. Only a 3x scale is supported, since the network's patch sizes are tied to it.
 
 

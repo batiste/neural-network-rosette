@@ -19,12 +19,15 @@ def list_sources(source_dir):
 
 
 def split_sources(sources, val_count=2):
+    if val_count < 1:
+        raise ValueError(f"val_count must be at least 1 (got {val_count})")
     if len(sources) <= val_count:
         raise ValueError(
             f"Need more than val_count={val_count} source images to hold any out for training "
             f"(found {len(sources)})."
         )
-    return sources[:-val_count], sources[-val_count:]
+    split = len(sources) - val_count
+    return sources[:split], sources[split:]
 
 
 class MoireDataset(Dataset):

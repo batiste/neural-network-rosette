@@ -1,7 +1,7 @@
-"""Real-world validation: source vs. a strong classical upscale vs.
-network output, for actual card photos (bear.webp, lotus.webp), not
-synthetic crops -- the honest test of whether this generalizes beyond
-the training distribution.
+"""Real-world validation: a strong classical upscale vs. network output,
+for actual card photos (bear.webp, lotus.webp), not synthetic crops --
+the honest test of whether this generalizes beyond the training
+distribution.
 
 Composited at each image's full native resolution with zero resampling
 (not panel.py's make_panel, which thumbnails everything down to a small
@@ -39,8 +39,7 @@ def main():
         # of nearest/bilinear/bicubic/lanczos/sharpened-bicubic in evaluate.py)
         classical = source.resize((source.width * scale, source.height * scale), resample=Image.LANCZOS)
         rows.append((name, [
-            ("source", source),
-            (f"lanczos {scale}x", classical),
+            (f"{scale}x lanczos", classical),
             ("network output", output),
         ]))
 

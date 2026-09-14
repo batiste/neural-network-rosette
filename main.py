@@ -1,69 +1,45 @@
+import argparse
+from pathlib import Path
+
+import imageio.v2 as imageio
 import numpy as np
-from images import values_in, values_out, inimg, outimg, normalized_values
-import imageio
-import sys
+import torch
+import torch.nn as nn
+
+from images import ImagePair
 
 # https://towardsdatascience.com/how-to-build-your-own-neural-network-from-scratch-in-python-68998a08e4f6
 
-def sigmoid(x):
-    return 1.0/(1+ np.exp(-x))
+SCRIPT_DIR = Path(__file__).resolve().parent
 
-def sigmoid_derivative(x):
-    return x * (1.0 - x)
 
-class NeuralNetwork:
-    def __init__(self, x, y):
-        self.input      = x
-        # 26 seems the maximun of node in the layer 1 before everything
-        # goes crazy
-        self.weights1   = np.random.rand(self.input.shape[1], 32)
-        self.weights2   = np.random.rand(32, 3)
-        self.y          = y
-        self.output     = np.zeros(self.y.shape)
+def get_device():
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
 
-    def feedforward(self):
-        self.layer1 = sigmoid(np.dot(self.input, self.weights1))
-        self.output = sigmoid(np.dot(self.layer1, self.weights2))
-        return self.output
 
-    def backprop(self, w=1):
-        # application of the chain rule to find derivative of the loss function with respect to weights2 and weights1
-        d_weights2 = np.dot(self.layer1.T, (2*(self.y - self.output) * sigmoid_derivative(self.output)))
-        d_weights1 = np.dot(self.input.T,
-            (np.dot(2*(self.y - self.output)
-            * sigmoid_derivative(self.output), self.weights2.T)
-            * sigmoid_derivative(self.layer1)))
+class PixelMLP(nn.Module):
+    """Tiny shared MLP applied independently to each of the 9 pixels in a
+    3x3 neighborhood, mapping it to the corresponding output pixel."""
 
-        # update the weights with the derivative (slope) of the loss function
-        self.weights1 += (d_weights1 / w)
-        self.weights2 += (d_weights2 / w)
+    def __init__(self, hidden=32):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(3, hidden),
+            nn.Sigmoid(),
+            nn.Linear(hidden, 3),
+            nn.Sigmoid(),
+        )
 
-def convert(p):
-    return (255 * p[0], 255 * p[1], 255 * p[2])
+    def forward(self, x):
+        return self.net(x)
 
-def writeImage(inimg, outimg, nn, filename):
-    [height, width, _] = inimg.shape
-    [oheight, owidth, _] = outimg.shape
-    outw = owidth - 6
-    outh = oheight - 6
-    assert (width - 2) * 3 == outw
-    assert (height - 2) * 3 == outh
-    pixels = [None] * (outh * outw)
-    y = 1
-    x = 1
-    while(y < height - 1):
-        while(x < width - 1):
-            nn.input = normalized_values(inimg, x, y)
-            index = (outw + (3 * outw * (y - 1))) + (1 + ((x - 1) * 3))
-            storePixels(pixels, index, nn.feedforward(), outw)
-            x += 1
-        else:
-            x = 1
-        y += 1
 
-    a = np.array(pixels, dtype=np.uint8)
-    a.shape = (outh, outw, 3)
-    imageio.imwrite(filename, a)
+def to_bytes(pixels):
+    return [(255 * p[0], 255 * p[1], 255 * p[2]) for p in pixels]
 
 
 def weighted_mean(p1, p2):
@@ -73,112 +49,190 @@ def weighted_mean(p1, p2):
         (3 * p1[2] + 2 * p2[2]) / 5.0,
     )
 
-def storePixel(array, index, v):
-    try:
-        if(array[index] is None):
-            array[index] = v
-        else:
-            p1 = array[index]
-            p2 = v
-            array[index] = weighted_mean(p1, p2)
-    except IndexError:
-        pass
+
+def store_pixel(array, index, v):
+    if index < 0 or index >= len(array):
+        return
+    if array[index] is None:
+        array[index] = v
+    else:
+        array[index] = weighted_mean(array[index], v)
 
 
-def storePixels(array, index, pixels, width):
-    # It works properly
+def store_pixels(array, index, pixels, width):
+    pixels = to_bytes(pixels)
 
-    storePixel(array, index - width - 1, convert(pixels[0]))
-    storePixel(array, index - width, convert(pixels[1]))
-    storePixel(array, index - width + 1, convert(pixels[2]))
+    store_pixel(array, index - width - 1, pixels[0])
+    store_pixel(array, index - width, pixels[1])
+    store_pixel(array, index - width + 1, pixels[2])
 
-    storePixel(array, index - 1, convert(pixels[3]))
-    storePixel(array, index, convert(pixels[4]))
-    storePixel(array, index + 1, convert(pixels[5]))
+    store_pixel(array, index - 1, pixels[3])
+    store_pixel(array, index, pixels[4])
+    store_pixel(array, index + 1, pixels[5])
 
-    storePixel(array, index + width - 1, convert(pixels[6]))
-    storePixel(array, index + width, convert(pixels[7]))
-    storePixel(array, index + width + 1, convert(pixels[8]))
-
-def main(inimg, outimg):
-    [height, width, _] = inimg.shape
-    x = np.random.randint(2, width - 2)
-    y = np.random.randint(2, height - 2)
-    input = values_in(x, y)
-    output = values_out(x, y)
-
-    pixels = []
-    for pixel in input:
-        pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
-
-    for pixel in output:
-        pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
-
-    I = np.array(input)
-    O = np.array(output)
-    nn = NeuralNetwork(I, O)
-
-    print "Training neural network ..."
-    # this speed up the training significantly
-
-    pixelsCache = {}
-    iterations = 100000
-    for z in range(iterations):
-        # train the network with random pixel from the source image
-        x = np.random.randint(1, width - 2)
-        y = np.random.randint(1, height - 2)
-        if z % 5000 == 0:
-            sys.stdout.write('.')
-            sys.stdout.flush()
-        key = "%d,%d" % (x, y)
-        if not key in pixelsCache:
-            pixelsCache[key] = (np.array(values_in(x, y)), np.array(values_out(x, y)))
-        input, output = pixelsCache[key]
-        nn.input = input
-        nn.y = output
-        nn.feedforward()
-        # last 10% should be smaller adjustments
-        if (iterations - z) / float(iterations) < 0.1:
-            nn.backprop(w=100)
-        else:
-            nn.backprop(w=10)
-
-    print ""
-    print "Neural network trained"
+    store_pixel(array, index + width - 1, pixels[6])
+    store_pixel(array, index + width, pixels[7])
+    store_pixel(array, index + width + 1, pixels[8])
 
 
-    for pixel in nn.feedforward():
-        pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
-
-    # another random pixel
-    _x = np.random.randint(1, width - 2)
-    _y = np.random.randint(1, height - 2)
-    input = values_in(_x, _y)
-    output = values_out(_x, _y)
-
-    for pixel in input:
-        pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
-    for pixel in output:
-        pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
-
-    nn.input = input
-    for pixel in nn.feedforward():
-        pixels.append((255 * pixel[0], 255 * pixel[1], 255 * pixel[2]))
+def interior_coords(pair):
+    height, width, _ = pair.inimg.shape
+    return [(x, y) for y in range(1, height - 1) for x in range(1, width - 1)]
 
 
-    # write a test image with 6 lines of 9 pixels each
-    # input
-    # output
-    # neural network output
-    a = np.array(pixels, dtype=np.uint8)
-    a.shape = (6, 9, 3)
-    imageio.imwrite('check.png', a)
-    print "Image written"
+def build_dataset(pair, coords):
+    """Flattened (N*9, 3) input/target pixel arrays: the network treats
+    each of the 9 neighborhood positions as an independent shared-weight
+    sample, so all positions across all points are trained together."""
+    inputs = np.array([pair.input_patch(x, y) for x, y in coords], dtype=np.float32)
+    targets = np.array([pair.output_patch(x, y) for x, y in coords], dtype=np.float32)
+    return torch.from_numpy(inputs.reshape(-1, 3)), torch.from_numpy(targets.reshape(-1, 3))
 
 
-    print "Outputing the result images"
-    writeImage(inimg, outimg, nn, 'result.png')
+def train(pair, epochs, batch_size, lr, device, rng):
+    coords = interior_coords(pair)
+    inputs, targets = build_dataset(pair, coords)
+    inputs, targets = inputs.to(device), targets.to(device)
+    n = inputs.shape[0]
+
+    model = PixelMLP().to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.MSELoss()
+    generator = torch.Generator().manual_seed(int(rng.integers(0, 2**31 - 1)))
+
+    print("Training neural network ...")
+    for epoch in range(epochs):
+        perm = torch.randperm(n, generator=generator).to(device)
+        epoch_loss = 0.0
+        for start in range(0, n, batch_size):
+            idx = perm[start:start + batch_size]
+            batch_in, batch_target = inputs[idx], targets[idx]
+
+            optimizer.zero_grad()
+            prediction = model(batch_in)
+            loss = loss_fn(prediction, batch_target)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item() * len(idx)
+
+        print(f"  epoch {epoch + 1}/{epochs}  mse={epoch_loss / n:.5f}")
+
+    print("Neural network trained")
+    return model
+
+
+def write_result_image(pair, model, device, filename):
+    height, width, _ = pair.inimg.shape
+    oheight, owidth, _ = pair.outimg.shape
+    outw = owidth - 6
+    outh = oheight - 6
+    assert (width - 2) * pair.scale == outw
+    assert (height - 2) * pair.scale == outh
+
+    coords = interior_coords(pair)
+    batch_in = np.array([pair.input_patch(x, y) for x, y in coords], dtype=np.float32)
+    batch_in = torch.from_numpy(batch_in).to(device)  # (N, 9, 3)
+    with torch.no_grad():
+        predictions = model(batch_in.reshape(-1, 3)).reshape(batch_in.shape[0], 9, 3)
+    predictions = predictions.cpu().numpy()
+
+    pixels = [None] * (outh * outw)
+    for (x, y), prediction in zip(coords, predictions):
+        index = (outw + (3 * outw * (y - 1))) + (1 + ((x - 1) * 3))
+        store_pixels(pixels, index, prediction, outw)
+
+    a = np.array(pixels, dtype=np.uint8).reshape(outh, outw, 3)
+    imageio.imwrite(filename, a)
+
+
+def write_check_image(pair, model, device, rng, filename):
+    """Diagnostic image: for two random sample points, show the input
+    neighborhood, the clean target block, and the network's current
+    prediction for that neighborhood -- 3 rows of 9 pixels per point."""
+    height, width, _ = pair.inimg.shape
+    rows = []
+    for _ in range(2):
+        x = int(rng.integers(1, width - 2))
+        y = int(rng.integers(1, height - 2))
+        input_patch = pair.input_patch(x, y)
+        output_patch = pair.output_patch(x, y)
+        with torch.no_grad():
+            batch_in = torch.tensor(input_patch, dtype=torch.float32, device=device)
+            prediction = model(batch_in).cpu().numpy()
+
+        rows.append(to_bytes(input_patch))
+        rows.append(to_bytes(output_patch))
+        rows.append(to_bytes(prediction))
+
+    pixels = [p for row in rows for p in row]
+    a = np.array(pixels, dtype=np.uint8).reshape(6, 9, 3)
+    imageio.imwrite(filename, a)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Train a tiny per-pixel neural network to upscale an image."
+    )
+    parser.add_argument(
+        "--input", default=str(SCRIPT_DIR / "inkami.png"),
+        help="low quality training input image (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--output", default=str(SCRIPT_DIR / "outkami.png"),
+        help="clean training target image, scale times the input size (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--scale", type=int, default=3,
+        help="upscale factor; only 3 is currently supported (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="random seed for reproducible training (default: unseeded)",
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=30,
+        help="number of passes over the training data (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=512,
+        help="training minibatch size (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--lr", type=float, default=1e-2,
+        help="Adam learning rate (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--device", default=None,
+        help="torch device to train on: cpu/mps/cuda (default: auto-detect, prefers MPS on Apple Silicon)",
+    )
+    parser.add_argument(
+        "--result", default="result.png",
+        help="where to write the upscaled result image (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--check", default="check.png",
+        help="where to write the diagnostic check image (default: %(default)s)",
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    rng = np.random.default_rng(args.seed)
+    torch.manual_seed(int(rng.integers(0, 2**31 - 1)))
+
+    device = torch.device(args.device) if args.device else get_device()
+    print(f"Using device: {device}")
+
+    pair = ImagePair.load(args.input, args.output, scale=args.scale)
+    model = train(pair, args.epochs, args.batch_size, args.lr, device, rng)
+
+    write_check_image(pair, model, device, rng, args.check)
+    print(f"Check image written to {args.check}")
+
+    print(f"Outputting the result image to {args.result}")
+    write_result_image(pair, model, device, args.result)
 
 
 if __name__ == "__main__":
-    main(inimg, outimg)
+    main()

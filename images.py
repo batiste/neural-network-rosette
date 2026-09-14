@@ -1,55 +1,71 @@
-import imageio
-import numpy as np
+"""Load an input/output training image pair and extract the normalized
+3x3 pixel neighborhoods used to train and query the neural network."""
 
-inimg = imageio.imread('inkami.png')
-outimg = imageio.imread('outkami.png')
+import imageio.v2 as imageio
 
-def pixelTo3(p):
+CORNER_WEIGHT = 0.42
+EDGE_WEIGHT = 0.36
+
+
+def pixel_to_3(p):
     return (p[0], p[1], p[2])
 
+
 def normalize(p):
-    return (p[0] / 255., p[1] / 255., p[2] / 255.)
+    return (p[0] / 255.0, p[1] / 255.0, p[2] / 255.0)
 
-m = 0.36
-mi = 1 - m
-def mean_2px(p1, p2):
+
+def _blend(neighbor, center, weight):
+    inv = 1 - weight
     return (
-        (m * p1[0] + mi * p2[0]),
-        (m * p1[1] + mi * p2[1]),
-        (m * p1[2] + mi * p2[2]),
+        weight * neighbor[0] + inv * center[0],
+        weight * neighbor[1] + inv * center[1],
+        weight * neighbor[2] + inv * center[2],
     )
 
-cm = 0.42
-cmi = 1 - cm
-def mean_2px_corner(p1, p2):
-    return (
-        (cm * p1[0] + cmi * p2[0]),
-        (cm * p1[1] + cmi * p2[1]),
-        (cm * p1[2] + cmi * p2[2]),
-    )
 
-def values(im, x, y):
-    m = im[y][x]
-    v = [
-        mean_2px_corner(im[y-1][x-1], m),  mean_2px(im[y-1][x], m), mean_2px_corner(im[y-1][x+1], m),
-        mean_2px(im[y][x-1], m),           m,                       mean_2px(im[y][x+1], m),
-        mean_2px_corner(im[y+1][x-1], m),  mean_2px(im[y+1][x], m), mean_2px_corner(im[y+1][x+1], m),
-    ]
-    return map(lambda b: pixelTo3(b), v)
+class ImagePair:
+    """A low quality input image paired with its clean upscaled target."""
 
-def _values_out(im, x, y):
-    v = [
-        im[y-1][x-1], im[y-1][x], im[y-1][x+1],
-        im[y][x-1],   im[y][x],   im[y][x+1],
-        im[y+1][x-1], im[y+1][x], im[y+1][x+1],
-    ]
-    return map(lambda b: pixelTo3(b), v)
+    def __init__(self, inimg, outimg, scale=3):
+        if scale != 3:
+            raise NotImplementedError(
+                "The network's architecture assumes a fixed 3x scale "
+                "(a 3x3 input neighborhood produces a 3x3 output block); "
+                "other scales require reworking the output block sizing."
+            )
+        self.inimg = inimg
+        self.outimg = outimg
+        self.scale = scale
 
-def normalized_values(im, x, y):
-    return map(lambda b: normalize(b), values(im, x, y))
+    @classmethod
+    def load(cls, input_path, output_path, scale=3):
+        return cls(imageio.imread(input_path), imageio.imread(output_path), scale=scale)
 
-def values_in(x, y, inimg=inimg):
-    return map(lambda b: normalize(b), values(inimg, x, y))
+    def _input_neighborhood(self, x, y):
+        im = self.inimg
+        center = im[y][x]
+        v = [
+            _blend(im[y - 1][x - 1], center, CORNER_WEIGHT), _blend(im[y - 1][x], center, EDGE_WEIGHT), _blend(im[y - 1][x + 1], center, CORNER_WEIGHT),
+            _blend(im[y][x - 1], center, EDGE_WEIGHT),        pixel_to_3(center),                         _blend(im[y][x + 1], center, EDGE_WEIGHT),
+            _blend(im[y + 1][x - 1], center, CORNER_WEIGHT), _blend(im[y + 1][x], center, EDGE_WEIGHT), _blend(im[y + 1][x + 1], center, CORNER_WEIGHT),
+        ]
+        return [pixel_to_3(p) for p in v]
 
-def values_out(x, y):
-    return map(lambda b: normalize(b), _values_out(outimg, 3*x, 3*y))
+    def _output_block(self, x, y):
+        im = self.outimg
+        ox, oy = self.scale * x, self.scale * y
+        v = [
+            im[oy - 1][ox - 1], im[oy - 1][ox], im[oy - 1][ox + 1],
+            im[oy][ox - 1],     im[oy][ox],     im[oy][ox + 1],
+            im[oy + 1][ox - 1], im[oy + 1][ox], im[oy + 1][ox + 1],
+        ]
+        return [pixel_to_3(p) for p in v]
+
+    def input_patch(self, x, y):
+        """Normalized 3x3 input neighborhood centered on (x, y)."""
+        return [normalize(p) for p in self._input_neighborhood(x, y)]
+
+    def output_patch(self, x, y):
+        """Normalized 3x3 target block, the clean upscaled counterpart of (x, y)."""
+        return [normalize(p) for p in self._output_block(x, y)]

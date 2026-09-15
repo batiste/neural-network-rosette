@@ -2,13 +2,13 @@
 (bear.webp, lotus.webp), not synthetic crops -- the honest test of
 whether this generalizes beyond the training distribution.
 
-Each output image has two rows:
-  1. Both cards at the source's native ("low") resolution, for a quick
-     at-a-glance look.
+Each output image has two rows, both at the same full width:
+  1. Both cards at the network output's full native size (the source is
+     nearest-neighbor upscaled to match, honestly showing its actual
+     blockiness rather than hiding it behind a small thumbnail).
   2. A 3x-zoomed crop of a representative region (bottom of the art, the
      type line, and the start of the rules text) so the actual
-     pixel-level sharpness difference is visible instead of hidden by a
-     full-card view too small to judge.
+     pixel-level sharpness difference is visible.
 """
 
 import argparse
@@ -18,12 +18,24 @@ from PIL import Image, ImageDraw, ImageFont
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PAD = 16
-LABEL_H = 24
+LABEL_H = 56
+LABEL_FONT_SIZE = 40
 
 # Crop region in SOURCE (native) pixel coordinates: bottom of the art,
 # the type line ("Summon Bears" / "Mono Artifact"), and the start of the
 # rules text box.
 MID_CROP = (0, 380, 672, 620)
+
+_LABEL_FONT_CANDIDATES = ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Helvetica.ttc")
+
+
+def _label_font(size=LABEL_FONT_SIZE):
+    for path in _LABEL_FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
 
 
 def labeled_row(cells, pad=PAD, label_h=LABEL_H):
@@ -32,11 +44,11 @@ def labeled_row(cells, pad=PAD, label_h=LABEL_H):
     row_width = sum(img.width for _, img in cells) + pad * (len(cells) + 1)
     row = Image.new("RGB", (row_width, row_height + pad * 2), "white")
     draw = ImageDraw.Draw(row)
-    font = ImageFont.load_default()
+    font = _label_font()
     x = pad
     for label, img in cells:
         row.paste(img, (x, pad))
-        draw.text((x, pad + img.height + 4), label, fill="black", font=font)
+        draw.text((x, pad + img.height + 8), label, fill="black", font=font)
         x += img.width + pad
     return row
 
@@ -57,11 +69,11 @@ def build_comparison(name):
     output = Image.open(SCRIPT_DIR / f"{name}_upscaled.png").convert("RGB")
     scale = round(output.width / source.width)
 
-    # Row 1: both cards at the source's native resolution -- downscale
-    # the network output to match, so this row is a quick, practical
-    # "does it look better at a glance" comparison, not a pixel-peep.
-    output_native = output.resize(source.size, resample=Image.LANCZOS)
-    row1 = labeled_row([("source", source), ("network output", output_native)])
+    # Row 1: both cards at the network output's full native size --
+    # nearest-neighbor upscale the source to match, honestly showing its
+    # actual low-res blockiness rather than smoothing it away.
+    source_big = source.resize(output.size, resample=Image.NEAREST)
+    row1 = labeled_row([("source", source_big), ("network output", output)])
 
     # Row 2: the same physical region, zoomed. The source crop is
     # upscaled with nearest-neighbor (honest -- shows the actual pixel

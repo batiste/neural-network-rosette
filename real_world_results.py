@@ -24,7 +24,12 @@ LABEL_FONT_SIZE = 40
 # Square crop region in SOURCE (native) pixel coordinates, left-aligned:
 # bottom of the art, the type line ("Summon Bears" / "Mono Artifact"),
 # and the start of the rules text box.
-MID_CROP = (0, 380, 240, 620)
+MID_CROP = (0, 440, 240, 680)
+
+# Extra zoom applied on top of the network's native upscale factor, purely
+# for display -- makes the crop actually look zoomed-in instead of just
+# being shown at its "natural" size.
+DISPLAY_ZOOM = 3
 
 _LABEL_FONT_CANDIDATES = ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Helvetica.ttc")
 
@@ -77,19 +82,26 @@ def build_comparison(name):
     source_big = source.resize(output.size, resample=Image.NEAREST)
     row1 = labeled_row([("source", source_big), ("network output", output)])
 
-    # Row 2: the same physical region, zoomed. The source crop is
-    # upscaled with nearest-neighbor (honest -- shows the actual pixel
-    # blockiness rather than a smooth resample hiding it); the output
-    # crop is just the corresponding region at its native full detail.
+    # Row 2: the same physical region, zoomed well past "natural" size so
+    # the difference is actually visible. The source crop goes straight
+    # from native resolution to the full zoom (scale x DISPLAY_ZOOM) with
+    # nearest-neighbor -- honest, shows the real blockiness. The output
+    # crop starts from its own native (already scale x) resolution and
+    # gets the same extra DISPLAY_ZOOM on top, so both end up the same
+    # size without inventing detail that isn't there.
+    total_zoom = scale * DISPLAY_ZOOM
     x0, y0, x1, y1 = MID_CROP
     source_crop = source.crop((x0, y0, x1, y1))
     source_crop_zoomed = source_crop.resize(
-        (source_crop.width * scale, source_crop.height * scale), resample=Image.NEAREST
+        (source_crop.width * total_zoom, source_crop.height * total_zoom), resample=Image.NEAREST
     )
     output_crop = output.crop((x0 * scale, y0 * scale, x1 * scale, y1 * scale))
+    output_crop_zoomed = output_crop.resize(
+        (output_crop.width * DISPLAY_ZOOM, output_crop.height * DISPLAY_ZOOM), resample=Image.NEAREST
+    )
     row2 = labeled_row([
-        (f"source ({scale}x zoom, nearest)", source_crop_zoomed),
-        ("network output (zoom)", output_crop),
+        (f"source ({total_zoom}x zoom, nearest)", source_crop_zoomed),
+        (f"network output ({DISPLAY_ZOOM}x display zoom)", output_crop_zoomed),
     ])
 
     return stack_rows([row1, row2])

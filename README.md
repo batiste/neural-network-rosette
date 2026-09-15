@@ -11,8 +11,74 @@ The problem was to find good training data (clean image + moiré image) that wou
 - Clean, high-resolution digital artwork (`sources/`) is used as training targets — no real scans needed.
 - Random crops of those images are synthetically degraded (`moire.py`) to simulate offset-print moiré: a per-channel halftone screen at rosette angles, sinusoidal interference banding, channel misregistration, variable effective scan resolution, blur, sharpening halos, sensor noise, and JPEG artifacts.
 - Some crops get random text/line overlays (`graphics.py`) before degrading, and `sources/` also includes procedurally generated text/gradient/shape images (`generate_synthetic_sources.py`) — the photographic art sources have essentially no sharp graphic-design content (typography, hard-ruled lines) on their own, so without this the model never learns to reconstruct it.
-- A small residual CNN (`model.py`) is trained to predict a correction on top of a bicubic upscale, giving it enough spatial context (a ~31x31 pixel receptive field, vs. a naive per-pixel approach's 3x3) to actually recognize and remove the pattern instead of guessing per-pixel.
+- A small residual CNN (`model.py`) is trained to predict a correction on top of a bicubic upscale, giving it enough spatial context (a ~47x47 pixel receptive field at the default size, vs. a naive per-pixel approach's 3x3) to actually recognize and remove the pattern instead of guessing per-pixel.
 - Besides whole-image PSNR/SSIM, `metrics.py` tracks an edge-masked variant (computed only on the highest-gradient ~10% of pixels — text strokes, line art, hard boundaries) since whole-image averages are dominated by large flat/textured areas and are known to reward blur over genuine sharpness. `train.py` selects `best.pt` by edge PSNR, not whole-image PSNR.
+
+### Network architecture
+
+`TinySRNet` (`model.py`), at the default `--channels 80 --num-blocks 10` (~1.73M parameters total):
+
+```
+            input: 3 x H x W  (low-res, degraded patch)
+                          │
+        ┌─────────────────┴──────────────────┐
+        │                                     │
+        ▼                                     ▼
+  Conv 3x3, 3→80                    bicubic upscale x3
+  + ReLU  ("head")                  (fixed, no learning)
+        │                                     │
+        ▼                                     │
+  80 x H x W  ────────────────┐               │
+        │                     │ skip          │
+        ▼                     │               │
+  ┌───────────────────┐       │               │
+  │  ResidualBlock      │      │               │
+  │  ────────────────   │      │               │
+  │   in ──┬─────────┐  │      │               │
+  │        │         │  │      │               │
+  │   Conv 3x3 80→80 │  │      │               │
+  │   + ReLU         │  │      │               │
+  │        │         │  │      │               │
+  │   Conv 3x3 80→80 │  │      │               │
+  │        │         │  │      │               │
+  │        └── + ────┘  │      │               │
+  │           out        │      │               │
+  └─────────┬─────────────┘      │               │
+            │  (x10, stacked)    │               │
+            ▼                    │               │
+  Conv 3x3, 80→80 ("body_tail")  │               │
+            │                    │               │
+            + ◄───────────────────┘               │
+            │                                     │
+            ▼                                     │
+  80 x H x W  ("feat")                             │
+            │                                     │
+            ▼                                     │
+  Conv 3x3, 80→720 (=80x3x3)                       │
+            │                                     │
+            ▼                                     │
+  PixelShuffle(3): 720xHxW → 80x3Hx3W              │
+            │                                     │
+            ▼                                     │
+  ReLU, then Conv 3x3, 80→3                        │
+            │                                     │
+            ▼  3 x 3H x 3W ("correction")          │
+            └──────────────┬──────────────────────┘
+                            ▼  correction + skip, clamp to [0, 1]
+                  output: 3 x 3H x 3W  (upscaled, cleaned)
+```
+
+| stage | op | shape in → out | params |
+|---|---|---|---|
+| head | Conv 3x3 | 3xHxW → 80xHxW | 2,240 |
+| 10x residual block | 2x Conv 3x3 (80→80) each | 80xHxW → 80xHxW | 115,360 each, 1,153,600 total |
+| body_tail | Conv 3x3 | 80xHxW → 80xHxW | 57,680 |
+| upsample conv 1 | Conv 3x3 | 80xHxW → 720xHxW | 519,120 |
+| PixelShuffle(3) | rearrange, no learned weights | 720xHxW → 80x3Hx3W | 0 |
+| upsample conv 2 | Conv 3x3 | 80x3Hx3W → 3x3Hx3W | 2,163 |
+| **total** | | | **≈1,734,800** |
+
+The residual blocks and the bicubic skip connection are the two ideas doing most of the work: the skip means the network only ever has to learn a *correction* on top of a reasonable starting point (never the image from scratch), and each residual block's `out = in + conv(conv(in))` lets gradients flow straight through during training rather than having to pass through 10 stacked layers' full nonlinearity, which is what makes a network this deep practical to train from scratch on a laptop.
 
 ## Setup
 

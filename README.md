@@ -19,53 +19,53 @@ The problem was to find good training data (clean image + moiré image) that wou
 `TinySRNet` (`model.py`), at the default `--channels 80 --num-blocks 10` (~1.73M parameters total):
 
 ```
-            input: 3 x H x W  (low-res, degraded patch)
-                          │
-        ┌─────────────────┴──────────────────┐
-        │                                     │
-        ▼                                     ▼
-  Conv 3x3, 3→80                    bicubic upscale x3
-  + ReLU  ("head")                  (fixed, no learning)
-        │                                     │
-        ▼                                     │
-  80 x H x W  ────────────────┐               │
-        │                     │ skip          │
-        ▼                     │               │
-  ┌───────────────────┐       │               │
-  │  ResidualBlock      │      │               │
-  │  ────────────────   │      │               │
-  │   in ──┬─────────┐  │      │               │
-  │        │         │  │      │               │
-  │   Conv 3x3 80→80 │  │      │               │
-  │   + ReLU         │  │      │               │
-  │        │         │  │      │               │
-  │   Conv 3x3 80→80 │  │      │               │
-  │        │         │  │      │               │
-  │        └── + ────┘  │      │               │
-  │           out        │      │               │
-  └─────────┬─────────────┘      │               │
-            │  (x10, stacked)    │               │
-            ▼                    │               │
-  Conv 3x3, 80→80 ("body_tail")  │               │
-            │                    │               │
-            + ◄───────────────────┘               │
-            │                                     │
-            ▼                                     │
-  80 x H x W  ("feat")                             │
-            │                                     │
-            ▼                                     │
-  Conv 3x3, 80→720 (=80x3x3)                       │
-            │                                     │
-            ▼                                     │
-  PixelShuffle(3): 720xHxW → 80x3Hx3W              │
-            │                                     │
-            ▼                                     │
-  ReLU, then Conv 3x3, 80→3                        │
-            │                                     │
-            ▼  3 x 3H x 3W ("correction")          │
-            └──────────────┬──────────────────────┘
-                            ▼  correction + skip, clamp to [0, 1]
-                  output: 3 x 3H x 3W  (upscaled, cleaned)
+               input: 3 x H x W  (low-res, degraded patch)
+        │
+        ┌──────────────────────────────────────────────┐
+        │                                              │
+        ▼                                              ▼
+  Conv 3x3, 3→80                                         bicubic upscale x3
+  + ReLU  ("head")                                       (fixed, no learning)
+        │                                              │
+        ▼                                              │
+  80 x H x W ────────────────────────┐                 │
+        │                            │ skip            │
+        ▼                            │                 │
+  ┌───────────────────────────┐      │                 │
+  │ ResidualBlock             │      │                 │
+  │ ───────────────────────── │      │                 │
+  │ in ──────────────────┬──┐ │      │                 │
+  │                      │  │ │      │                 │
+  │ Conv 3x3 80→80       │  │ │      │                 │
+  │ + ReLU               │  │ │      │                 │
+  │                      │  │ │      │                 │
+  │ Conv 3x3 80→80       │  │ │      │                 │
+  │                      │  │ │      │                 │
+  │ └────────────────────+──┘ │      │                 │
+  │          out              │      │                 │
+  └───────────────────────────┘      │                 │
+        │  (x10, stacked)            │                 │
+        ▼                            │                 │
+  Conv 3x3, 80→80 ("body_tail")      │                 │
+        │                            │                 │
+        └────────────────────────────◄                 │
+        │                                              │
+        ▼                                              │
+  80 x H x W  ("feat")                                 │
+        │                                              │
+        ▼                                              │
+  Conv 3x3, 80→720 (=80x3x3)                           │
+        │                                              │
+        ▼                                              │
+  PixelShuffle(3): 720xHxW → 80x3Hx3W                  │
+        │                                              │
+        ▼                                              │
+  ReLU, then Conv 3x3, 80→3                            │
+        │                                              │
+        ▼  3 x 3H x 3W                                 │
+        └──────────────────────────────────────────────┘
+          ▼  correction + skip, clamp to [0, 1]
+             output: 3 x 3H x 3W  (upscaled, cleaned)
 ```
 
 | stage | op | shape in → out | params |

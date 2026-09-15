@@ -16,7 +16,18 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-from graphics import _contrasting_color, _luminance, _random_font, _random_text, offset_color
+from graphics import _contrasting_color, _luminance, _random_font, _random_text, offset_color, random_title_font
+
+# Old-border MTG card frame colors, one per color-pie entry, used as the
+# base tone for gen_embossed_title_on_texture. Approximate midpoints;
+# the function jitters around them for variety.
+MTG_COLOR_FRAMES = {
+    "white": (215, 200, 165),
+    "blue": (65, 95, 150),
+    "black": (55, 50, 55),
+    "red": (150, 70, 45),
+    "green": (60, 100, 65),
+}
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SIZE = (1000, 1400)
@@ -104,15 +115,20 @@ def gen_text_on_texture(rng):
     return np.array(im)
 
 
-def gen_embossed_title_on_texture(rng):
-    """Title-style text: a light gray/metallic fill with a dark outline
-    and drop shadow, on a warm brown/tan mottled texture -- the
-    engraved-looking card title on a leather-look frame, as opposed to
-    gen_text_on_texture's flat contrast-forced fill. This specific
-    style (not just "text on texture" generically) has been the
-    stubborn remaining failure case."""
+def gen_embossed_title_on_texture(rng, base_color=None):
+    """Title-style text: a gray/metallic fill with a dark outline and
+    drop shadow, on a mottled leather-look texture -- the engraved
+    card-title look, as opposed to gen_text_on_texture's flat
+    contrast-forced fill. This specific style (not just "text on
+    texture" generically) has been the stubborn remaining failure case.
+
+    base_color: an (r, g, b) midpoint to jitter the texture around --
+    pass one of MTG_COLOR_FRAMES for a specific color-pie frame tone,
+    or leave None for a generic warm brown/tan (artifact-ish) frame."""
     w, h = SIZE
-    base_color = np.array([rng.uniform(90, 170), rng.uniform(55, 120), rng.uniform(25, 80)], dtype=np.float32)
+    if base_color is None:
+        base_color = (rng.uniform(90, 170), rng.uniform(55, 120), rng.uniform(25, 80))
+    base_color = np.array(base_color, dtype=np.float32)
     texture = np.zeros((h, w), dtype=np.float32)
     amplitude, total_amp = 1.0, 0.0
     for cell in (80, 40, 20, 10, 5):
@@ -129,7 +145,7 @@ def gen_embossed_title_on_texture(rng):
     y = int(h * 0.04)
     while y < h - margin:
         font_size = int(rng.integers(20, 95))
-        font = _random_font(rng, font_size)
+        font = random_title_font(rng, font_size)
         text = _random_text(rng, min_len=6, max_len=22)
         bbox = draw.textbbox((margin, y), text, font=font)
         x0, y0 = max(0, bbox[0]), max(0, bbox[1])
@@ -137,11 +153,12 @@ def gen_embossed_title_on_texture(rng):
         region = img[y0:y1, x0:x1]
         bg_luminance = _luminance(region.reshape(-1, 3).mean(axis=0)) if region.size else 128.0
 
-        # Low-contrast fill (the "beta card" look: gray title text that's
-        # only a little lighter than its brown border) legible mainly via
-        # a darker outline/shadow rather than raw fill-vs-background
-        # contrast -- not the wide range _contrasting_color uses elsewhere.
-        fill_color = offset_color(rng, bg_luminance, (15, 55))
+        # Very low-contrast fill (the "beta card" look: gray title text
+        # sitting only barely lighter/darker than its frame) legible
+        # mainly via the darker outline/shadow below, not raw
+        # fill-vs-background contrast -- much tighter than the wide
+        # range _contrasting_color uses for general body text.
+        fill_color = offset_color(rng, bg_luminance, (8, 28))
         stroke_color = tuple(int(c) for c in rng.integers(10, 50, size=3))
         stroke_width = int(rng.integers(1, 4))
         shadow_offset = int(rng.integers(1, 4))
@@ -235,15 +252,15 @@ def gen_shapes(rng):
 
 GENERATORS = [
     ("synthetic_text_light_1", lambda rng: gen_text_block(rng, light_bg=True)),
-    ("synthetic_text_light_2", lambda rng: gen_text_block(rng, light_bg=True)),
     ("synthetic_text_gradient_1", gen_text_on_gradient),
-    ("synthetic_text_gradient_2", gen_text_on_gradient),
     ("synthetic_text_dark_1", lambda rng: gen_text_block(rng, light_bg=False)),
-    ("synthetic_text_dark_2", lambda rng: gen_text_block(rng, light_bg=False)),
     ("synthetic_text_texture_1", gen_text_on_texture),
-    ("synthetic_text_texture_2", gen_text_on_texture),
-    ("synthetic_text_embossed_1", gen_embossed_title_on_texture),
-    ("synthetic_text_embossed_2", gen_embossed_title_on_texture),
+    ("synthetic_text_embossed_artifact", gen_embossed_title_on_texture),
+    ("synthetic_text_embossed_white", lambda rng: gen_embossed_title_on_texture(rng, MTG_COLOR_FRAMES["white"])),
+    ("synthetic_text_embossed_blue", lambda rng: gen_embossed_title_on_texture(rng, MTG_COLOR_FRAMES["blue"])),
+    ("synthetic_text_embossed_black", lambda rng: gen_embossed_title_on_texture(rng, MTG_COLOR_FRAMES["black"])),
+    ("synthetic_text_embossed_red", lambda rng: gen_embossed_title_on_texture(rng, MTG_COLOR_FRAMES["red"])),
+    ("synthetic_text_embossed_green", lambda rng: gen_embossed_title_on_texture(rng, MTG_COLOR_FRAMES["green"])),
     ("synthetic_lines_1", gen_lines),
     ("synthetic_shapes_1", gen_shapes),
 ]

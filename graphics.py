@@ -73,6 +73,43 @@ def _random_font(rng, size):
     return ImageFont.load_default()
 
 
+# Beta-era MTG card titles were set in Plantin, a commercial Monotype
+# serif that isn't available as a system font here (and isn't something
+# to source from the web). Times New Roman is the closest old-style book
+# serif actually on this machine; Georgia/Big Caslon add a little
+# variety while staying in the same family of look.
+_TITLE_FONT_NAMES = (
+    "Times New Roman.ttf", "Times New Roman Bold.ttf", "Times New Roman Italic.ttf",
+    "Georgia.ttf", "Georgia Bold.ttf", "BigCaslon.ttf",
+)
+_TITLE_FONT_PATHS = None
+
+
+def _discover_title_fonts():
+    global _TITLE_FONT_PATHS
+    if _TITLE_FONT_PATHS is not None:
+        return _TITLE_FONT_PATHS
+    by_name = {p.name: p for p in _discover_fonts()}
+    paths = [by_name[n] for n in _TITLE_FONT_NAMES if n in by_name]
+    _TITLE_FONT_PATHS = paths or _discover_fonts()
+    return _TITLE_FONT_PATHS
+
+
+def random_title_font(rng, size):
+    """A font from the curated title-appropriate pool (see
+    _TITLE_FONT_NAMES), for card-title-style text specifically -- as
+    opposed to _random_font's full assorted pool used for generic body
+    text/overlays."""
+    fonts = _discover_title_fonts()
+    if fonts:
+        path = fonts[int(rng.integers(0, len(fonts)))]
+        try:
+            return ImageFont.truetype(str(path), size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+
 def _random_text(rng, min_len=3, max_len=18):
     length = int(rng.integers(min_len, max_len + 1))
     return "".join(_ALPHABET[i] for i in rng.integers(0, len(_ALPHABET), size=length))

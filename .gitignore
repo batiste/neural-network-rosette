@@ -3,7 +3,8 @@
 !outkami.png
 !moire_preview.png
 !results.png
-!real_world_results.png
+!bear_comparison.png
+!lotus_comparison.png
 *.pyc
 .DS_Store
 .venv/

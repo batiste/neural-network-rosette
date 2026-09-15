@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 from graphics import add_synthetic_graphics
 from moire import PRESETS, degrade
 
-EXTS = {".png", ".jpg", ".jpeg"}
+EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 def list_sources(source_dir):

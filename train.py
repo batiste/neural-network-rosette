@@ -84,8 +84,9 @@ def parse_args():
     parser.add_argument("--synthetic-share", type=float, default=0.3,
                          help="fraction of sampling probability mass given to generate_synthetic_sources.py "
                               "images as a group, independent of file count or size (default: %(default)s)")
-    parser.add_argument("--val-count", type=int, default=4, help="number of source images held out for validation")
-    parser.add_argument("--val-samples", type=int, default=32)
+    parser.add_argument("--val-count", type=int, default=8, help="number of source images held out for validation")
+    parser.add_argument("--val-samples", type=int, default=96,
+                         help="validation crops per epoch; cheap to raise (~30ms/sample) for a less noisy metric")
     parser.add_argument("--preview-every", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default=None)

@@ -2,13 +2,13 @@
 (bear.webp, lotus.webp), not synthetic crops -- the honest test of
 whether this generalizes beyond the training distribution.
 
-Each output image has two rows, both at the same full width:
+Each output image has two rows, left-aligned:
   1. Both cards at the network output's full native size (the source is
      nearest-neighbor upscaled to match, honestly showing its actual
      blockiness rather than hiding it behind a small thumbnail).
-  2. A 3x-zoomed crop of a representative region (bottom of the art, the
-     type line, and the start of the rules text) so the actual
-     pixel-level sharpness difference is visible.
+  2. A 3x-zoomed square crop (not full width) of a representative region
+     (bottom of the art, the type line, and the start of the rules text)
+     so the actual pixel-level sharpness difference is visible.
 """
 
 import argparse
@@ -21,10 +21,10 @@ PAD = 16
 LABEL_H = 56
 LABEL_FONT_SIZE = 40
 
-# Crop region in SOURCE (native) pixel coordinates: bottom of the art,
-# the type line ("Summon Bears" / "Mono Artifact"), and the start of the
-# rules text box.
-MID_CROP = (0, 380, 672, 620)
+# Square crop region in SOURCE (native) pixel coordinates, left-aligned:
+# bottom of the art, the type line ("Summon Bears" / "Mono Artifact"),
+# and the start of the rules text box.
+MID_CROP = (0, 380, 240, 620)
 
 _LABEL_FONT_CANDIDATES = ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Helvetica.ttc")
 
@@ -54,12 +54,14 @@ def labeled_row(cells, pad=PAD, label_h=LABEL_H):
 
 
 def stack_rows(rows, pad=PAD):
+    """Left-aligned: rows narrower than the widest one just leave
+    whitespace on the right rather than being centered."""
     width = max(r.width for r in rows)
     height = sum(r.height for r in rows) + pad * (len(rows) + 1)
     canvas = Image.new("RGB", (width, height), "white")
     y = pad
     for r in rows:
-        canvas.paste(r, ((width - r.width) // 2, y))
+        canvas.paste(r, (0, y))
         y += r.height + pad
     return canvas
 
